@@ -12,10 +12,3 @@ Then you can run:
 ```
 python3 Editor.py 
 ```
----
-### TODO
-- [ ] Get the rest of the GUI setup, getting the correct elements on click and such.
-- [ ] Menu items for the various ways of editing the skin files.
-- [ ] Keyboard shortcuts need bound, and have decent amount of tools when it comes to editing.
-- [ ] Have a set of "default" files for the editor, so you can easily start new projects.
-- [ ] ***Lots*** more tbh
