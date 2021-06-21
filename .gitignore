@@ -1,4 +1,8 @@
+.DS_Store
 .idea
 __pycache__
 venv
 all-skins
+test
+build
+dist
