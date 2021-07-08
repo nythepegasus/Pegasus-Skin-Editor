@@ -9,76 +9,73 @@ from PIL.ImageTk import PhotoImage, Image
 from ui import Canvas, TouchRect, ExtendedRect, TouchRegion
 
 
-class TypeChooser(tk.Toplevel):
-    def __init__(self, parent: tk.Tk):
-        super().__init__(parent)
-        self.title("Choose Type")
-        self.parent = parent
-        self._create_widgets()
-        self.wm_protocol("WM_DELETE_WINDOW", self._destroyed)
-        self.bind("<Return>", self._get_results)
-
-    def _destroyed(self):
-        self.parent.destroy()
-
-    def _create_widgets(self):
-        self.map_type = StringVar(None, "standard")
-        self.orientation = StringVar(None, "portrait")
-        ttk.Radiobutton(self, text="Standard", variable=self.map_type, value="standard").grid(column=0, row=0,
-                                                                                              sticky="nesw")
-        ttk.Radiobutton(self, text="Edge to Edge", variable=self.map_type, value="edgeToEdge").grid(column=0, row=1,
-                                                                                                    sticky="nesw")
-        ttk.Separator(self, orient="vertical").grid(column=1, row=0, rowspan=3, sticky="ns")
-        ttk.Radiobutton(self, text="Portrait", variable=self.orientation, value="portrait").grid(column=2, row=0,
-                                                                                                 sticky="nsw")
-        ttk.Radiobutton(self, text="Landscape", variable=self.orientation, value="landscape").grid(column=2, row=1,
-                                                                                                   sticky="nsw")
-        submit = ttk.Button(self, text="Submit")
-        submit.grid(column=1, row=3)
-        submit.bind("<Button-1>", self._get_results)
-
-    def _get_results(self, _):
-        wd = filedialog.askdirectory(title="Choose the deltaskin directory:", initialdir="~/")
-        if wd == "":
-            messagebox.showerror(title="No File!", message="No directory was specified!")
-        else:
-            self.parent.results = [Path(wd), self.map_type.get(), self.orientation.get()]
-            self.parent.ready()
-            self.parent.deiconify()
-            self.destroy()
-
-
 class Editor(tk.Tk):
     def __init__(self):
         super().__init__()
+        self.withdraw()
+        self.wd = Path(filedialog.askdirectory(title="Choose the deltaskin directory:",
+                                               initialdir=Path(".").absolute()))
+        self.map_type = StringVar(None, "standard")
+        self.orientation = StringVar(None, "landscape")
+        self.ready()
+        self.deiconify()
         self.sel_img: TouchRect = None
         self.bind("<Button-1>", self.__info)
         self.bind("<Shift-1>", self.__info)
         self.bind("<Button-2>", self.__redraw)
 
     def ready(self):
-        config = json.load((self.results[0] / "info.json").open())
-        self.title(f"{config['name']} | {self.results[2].capitalize()}")
-        self.mapping = config['representations']['iphone'][self.results[1]][self.results[2]]
+        for widget in self.winfo_children():
+            widget.destroy()
+        config = json.load((self.wd / "info.json").open())
+        self.title(f"{config['name']} | {self.map_type.get()}")
+        self.mapping = config['representations']['iphone'][self.map_type.get()][self.orientation.get()]
+
+        w = self.mapping["mappingSize"]["width"]
+        h = self.mapping["mappingSize"]["height"]
+
+        ws = self.winfo_screenwidth()
+        hs = self.winfo_screenheight()
+
+        x = (ws / 2) - (w / 2)
+        y = (hs / 2) - (h / 2)
+
+        self.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
         self.__create_widgets()
+        self.__create_menus()
+
+    def __create_menus(self):
+
+        menubar = tk.Menu(self)
+
+        typemenu = tk.Menu(menubar)
+        typemenu.add_radiobutton(label="Standard", value="standard", variable=self.map_type, command=self.ready)
+        typemenu.add_radiobutton(label="Edge To Edge", value="edgeToEdge", variable=self.map_type, command=self.ready)
+        typemenu.add_separator()
+        typemenu.add_radiobutton(label="Portrait", value="portrait", variable=self.orientation, command=self.ready)
+        typemenu.add_radiobutton(label="Landscape", value="landscape", variable=self.orientation, command=self.ready)
+
+        menubar.add_cascade(label="Type", menu=typemenu)
+
+        self.config(menu=menubar)
 
     def __create_widgets(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             try:
                 try:
-                    cfp(self.results[0] / self.mapping["assets"]["resizable"],
+                    cfp(self.wd / self.mapping["assets"]["resizable"],
                         size=(self.mapping["mappingSize"]["width"],
                         self.mapping["mappingSize"]["height"]))[0].save(tmpdir / "temp.png", "PNG")
                 except KeyError:
-                    cfp(self.results[0] / self.mapping["assets"]["large"],
+                    cfp(self.wd / self.mapping["assets"]["large"],
                         size=(self.mapping["mappingSize"]["width"],
                               self.mapping["mappingSize"]["height"]))[0].save(tmpdir / "temp.png", "PNG")
                 background_file = Image.open(tmpdir / "temp.png")
             except PDFPageCountError:  # Assume it's already a png
-                background_file = Image.open(self.results[0] / self.mapping["assets"]["large"])
+                background_file = Image.open(self.wd / self.mapping["assets"]["large"])
 
-            print(background_file.filename)
             background_file = background_file.resize(size=(self.mapping["mappingSize"]["width"],
                                                            self.mapping["mappingSize"]["height"]))
             self.canv_image = PhotoImage(background_file)
@@ -87,8 +84,10 @@ class Editor(tk.Tk):
             self.canvas.background = self.canv_image  # tkinter why??
             self.canvas.create_image(0, 0, image=self.canv_image, anchor="nw")
             self.canvas.pack()
-
-        dext = self.mapping['extendedEdges']
+        try:
+            dext = self.mapping['extendedEdges']
+        except KeyError:
+            dext = {"top": 0, "bottom": 0, "left": 0, "right": 0}
         for item in self.mapping['items']:
             iext = item['extendedEdges'] if "extendedEdges" in item.keys() else dext.copy()
             for i in dext.keys():
@@ -139,7 +138,6 @@ class Editor(tk.Tk):
             self.__redraw(None)
         sel = self.canvas.find_closest(event.x, event.y)
         print(sel)
-        print(len(self.canvas.images))
         if event.state == 1:
             overlapped = self.canvas.find_overlapping(event.x, event.y, event.x, event.y)
             if len(overlapped) > 2:
@@ -205,6 +203,4 @@ class Editor(tk.Tk):
 
 if __name__ == '__main__':
     root = Editor()
-    root.withdraw()
-    chooser = TypeChooser(root)
     root.mainloop()
