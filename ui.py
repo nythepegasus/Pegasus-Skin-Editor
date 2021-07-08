@@ -19,11 +19,11 @@ class TouchRect(PhotoImage):
         super().__init__(self.orig)
         self.name = str(self._PhotoImage__photo)
 
-    def create(self, update=False):
+    def create(self, update: bool = False):
         self.canvas = self.parent.canvas
         try:
             self.canvas.images.pop(self.canvas.images.index(self))
-        except:
+        except (IndexError, ValueError):
             pass
         if update:
             self.canvas.create_image(self.coords[0], self.coords[1], image=self, anchor="nw", tags="sel")
@@ -67,9 +67,9 @@ class TouchRegion:
         self.touchColor = "#0000ff80"
         self.extendedColor = "#ff000080"
 
-    def create(self):
-        self.extendedRect.create()
-        self.touchRect.create()
+    def create(self, update: bool = False):
+        self.extendedRect.create(update)
+        self.touchRect.create(update)
 
     def update(self, w, h, touch: bool):
         if touch:

@@ -15,14 +15,30 @@ class Editor(tk.Tk):
         self.withdraw()
         self.wd = Path(filedialog.askdirectory(title="Choose the deltaskin directory:",
                                                initialdir=Path(".").absolute()))
+        if self.wd == Path(""):
+            messagebox.showerror("No Directory Selected!", "Please select a directory to proceed.")
+            exit(1)
         self.map_type = StringVar(None, "standard")
         self.orientation = StringVar(None, "landscape")
         self.ready()
         self.deiconify()
         self.sel_img: TouchRect = None
+
         self.bind("<Button-1>", self.__info)
         self.bind("<Shift-1>", self.__info)
         self.bind("<Button-2>", self.__redraw)
+        self.bind("+", self.__increase)
+        self.bind("=", self.__increase)
+        self.bind("<plusminus>", self.__increase)
+        self.bind("<notequal>", self.__increase)
+        self.bind("<endash>", self.__decrease)
+        self.bind("<emdash>", self.__decrease)
+        self.bind("-", self.__decrease)
+        self.bind("_", self.__decrease)
+        self.bind("<Left>", self.__move)
+        self.bind("<Right>", self.__move)
+        self.bind("<Up>", self.__move)
+        self.bind("<Down>", self.__move)
 
     def ready(self):
         for widget in self.winfo_children():
@@ -119,36 +135,22 @@ class Editor(tk.Tk):
         for region in self.canvas.regions:
             region.create()
 
-    def __sel(self):
-        self.bind("+", self.__increase)
-        self.bind("=", self.__increase)
-        self.bind("<plusminus>", self.__increase)
-        self.bind("<notequal>", self.__increase)
-        self.bind("<endash>", self.__decrease)
-        self.bind("<emdash>", self.__decrease)
-        self.bind("-", self.__decrease)
-        self.bind("_", self.__decrease)
-        self.bind("<Left>", self.__move)
-        self.bind("<Right>", self.__move)
-        self.bind("<Up>", self.__move)
-        self.bind("<Down>", self.__move)
-
     def __info(self, event):
         if self.canvas.find_withtag("sel"):
             self.__redraw(None)
         sel = self.canvas.find_closest(event.x, event.y)
-        print(sel)
         if event.state == 1:
             overlapped = self.canvas.find_overlapping(event.x, event.y, event.x, event.y)
             if len(overlapped) > 2:
-                sel = (overlapped[1],)
-        if sel[0] == 1:
+                sel = (overlapped[-2],)
+        try:
+            sel_img = [i for i in self.canvas.images if i.name == self.canvas.itemcget(sel, "image")][0]
+        except IndexError:
             return
-        sel_img = [i for i in self.canvas.images if i.name == self.canvas.itemcget(sel, "image")][0]
+        if sel_img == "pyimage1":
+            return
         self.sel_img = sel_img
-        print(self.sel_img.parent.input)
         self.canvas.addtag_withtag("sel", sel)
-        self.__sel()
 
     def __decrease(self, event):
         x, y = 0, 0
