@@ -11,6 +11,7 @@ First you will want poppler for your whatever system you want to use this editor
 I highly recommend getting poppler from [here](https://blog.alivate.com.au/poppler-windows/).
 I personally have had the best luck using version 0.67.0, but others have gotten higher versions 
 to work from elsewhere.
+
 ---
 ### Mac (using brew)
 ```bash
