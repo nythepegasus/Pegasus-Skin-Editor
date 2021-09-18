@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import tempfile
+import platform
 import tkinter as tk
 import zipfile
 from typing import Union
@@ -178,8 +179,10 @@ class Editor(tk.Tk):
         self.mapping = self.config_data['representations']['iphone'][self.map_type.get()][self.orientation.get()]
 
         w = self.mapping["mappingSize"]["width"]
-        h = self.mapping["mappingSize"]["height"] + 25
-
+        if platform.system() == "Windows" or platform.system() == "Linux":
+            h = self.mapping["mappingSize"]["height"] + 40
+        else:
+            h = self.mapping["mappingSize"]["height"] + 25
         ws = self.winfo_screenwidth()
         hs = self.winfo_screenheight()
 
