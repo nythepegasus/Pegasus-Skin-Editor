@@ -1,4 +1,5 @@
 import tkinter as tk
+import zipfile
 from pprint import pprint
 from tkinter import filedialog, messagebox
 from PIL.ImageTk import PhotoImage, Image
@@ -173,7 +174,15 @@ class Canvas(tk.Canvas):
         self.master.config_data["debug"] = save_values["debug"]
 
         if save_values["overwrite"]:
-            json.dump(self.master.config_data, self.master.wd.open("w"), indent=4)
+            if self.master.open_type == "dir":
+                json.dump(self.master.config_data, self.master.wd.open("w"), indent=4)
+            else:
+                with zipfile.ZipFile(self.master.wd.parent / f"{self.master.wd.stem}_edited{self.master.wd.suffix}",
+                                     "w") as zfile:
+                    zfile.writestr("info.json", json.dumps(self.master.config_data, indent=4))
+                    for file in self.master.zfile.filelist:
+                        if file.filename != "info.json":
+                            zfile.writestr(file.filename, self.master.zfile.open(file).read())
         else:
             conf_file = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")],
                                                      initialdir=self.master.wd.parent, title="Choose Config File")
