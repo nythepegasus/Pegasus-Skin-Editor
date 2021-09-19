@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import io
 import json
 import tempfile
 import platform
@@ -128,7 +129,7 @@ class Editor(tk.Tk):
         self.cur_selected.set(f"")
         self.sel_img = None
 
-    def __add_button(self, inputs: Union[list, dict], frame=None, extended_edges=None):
+    def __add_button(self, inputs: Union[list, dict], frame: dict = None, extended_edges: dict = None):
         if frame is None:
             print((self.winfo_x(), self.winfo_y()))
             x = self.winfo_x() // 2 + 25
@@ -214,15 +215,20 @@ class Editor(tk.Tk):
         self.config(menu=menubar)
 
     def __create_widgets(self):
+        size = (self.mapping["mappingSize"]["width"], self.mapping["mappingSize"]["height"])
+        which_key = list(self.mapping["assets"].keys())[0]
         try:
-            if self.open_type == "dir":
-                image = cfp(Path(self.wd.parent / self.mapping["assets"]["resizable"]),
-                            size=(self.mapping["mappingSize"]["width"], self.mapping["mappingSize"]["height"]),
-                            fmt="png")[0]
+            if "resizable" in self.mapping["assets"].keys():
+                if self.open_type == "dir":
+                    image = cfp(Path(self.wd.parent / self.mapping["assets"][which_key]), size=size, fmt="png")[0]
+                else:
+                    image = cfb(self.zfile.read(self.mapping["assets"][which_key]), size=size, fmt="png")[0]
             else:
-                image = cfb(self.zfile.read(self.mapping["assets"]["resizable"]),
-                            size=(self.mapping["mappingSize"]["width"], self.mapping["mappingSize"]["height"]),
-                            fmt="png")[0]
+                if self.open_type == "dir":
+                    image = Image.open(self.wd.parent / self.mapping["assets"][which_key]).resize(size)
+                else:
+
+                    image = Image.open(io.BytesIO(self.zfile.read(self.mapping["assets"][which_key]))).resize(size)
         except (PDFPageCountError, KeyError) as e:
             if isinstance(e, KeyError):
                 raise SystemExit("Couldn't get the correct key!")
