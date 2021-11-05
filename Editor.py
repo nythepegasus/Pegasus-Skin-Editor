@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 import io
 import json
-import tempfile
 import platform
 import tkinter as tk
-import zipfile
 from typing import Union
 from tkinter import StringVar, filedialog, messagebox
-from zipfile import ZipFile
 from pdf2image import convert_from_bytes as cfb
 from pdf2image import convert_from_path as cfp
 from pdf2image.exceptions import PDFPageCountError
 from pathlib import Path
 from PIL.ImageTk import PhotoImage, Image
 from ui import Canvas, TouchRect, ExtendedRect, TouchRegion, ButtonSelect
+from handlers import dskin_handler
 
 
 class Editor(tk.Tk):
@@ -29,33 +27,7 @@ class Editor(tk.Tk):
             self.open_type = "dir"
             self.config_data = json.load(self.wd.open())
         elif self.wd.suffix == ".deltaskin":
-            self.zfile = ZipFile(self.wd, 'r')
-            try:
-                self.config_data = json.loads(self.zfile.read("info.json"))
-            except KeyError:
-                answer = messagebox.askyesno("Couldn't find a proper 'info.json' file in this deltaskin!",
-                                             "Do you want this application to try and attempt to find/repair this "
-                                             "archive? (No data will be destroyed/lost)")
-                if answer:
-                    try:
-                        conf_file = [f for f in self.zfile.filelist if Path(f.filename).name == "info.json"][0]
-                        conf_data = json.loads(self.zfile.read(conf_file))
-                        extra_files = [f for f in self.zfile.filelist
-                                       if f.filename.find("._") == -1 and f.is_dir() is False]
-                        nzfile = zipfile.ZipFile(self.wd.parent / f"{self.wd.stem}_fixed{self.wd.suffix}", "w")
-                        for file in extra_files:
-                            nzfile.writestr(Path(file.filename).name, self.zfile.read(file),
-                                            compress_type=zipfile.ZIP_DEFLATED)
-                        nzfile.close()
-                        self.zfile = zipfile.ZipFile(nzfile.filename)
-                        self.config_data = conf_data
-                    except IndexError:
-                        messagebox.showerror("File not found!", "No file named 'info.json' was found within this "
-                                                                "deltaskin.")
-                        self.zfile.close()
-                        raise SystemExit("Couldn't find an info.json file within this archive.")
-                else:
-                    raise SystemExit("Broken deltaskin file, cannot proceed.")
+            self.config_data, self.zfile = dskin_handler(self.wd)
             self.open_type = "archive"
 
         self.map_type = StringVar(None, "standard")
@@ -173,6 +145,7 @@ class Editor(tk.Tk):
                     return
 
         self.EDITED = False
+        self.cur_selected.set("")
 
         for widget in self.winfo_children():
             widget.destroy()
@@ -313,5 +286,4 @@ class Editor(tk.Tk):
 
 
 if __name__ == '__main__':
-    root = Editor()
-    root.mainloop()
+    Editor().mainloop()
