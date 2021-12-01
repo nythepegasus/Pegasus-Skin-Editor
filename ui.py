@@ -31,12 +31,15 @@ class Region:
         left = self.extended_edges["left"]
         right = self.extended_edges["right"]
 
-        self.touch = PhotoImage(Image.new("RGBA", (self.width, self.height), "#0000ff80"))
-        self.extended = PhotoImage(Image.new("RGBA", (left+self.width+right, top+self.height+bottom), "#ff000080"))
+        self.touch = Image.new("RGBA", (self.width, self.height), "#0000ff80")
+        self.extended = Image.new("RGBA", (left+self.width+right, top+self.height+bottom), "#ff000080")
+
+        self._pi_t = PhotoImage(self.touch)
+        self._pi_e = PhotoImage(self.extended)
 
         self._e = self.representation.create_image(self.coords[0]-left, self.coords[1]-top,
-                                             image=self.extended, anchor="nw")
-        self._t = self.representation.create_image(*self.coords, image=self.touch, anchor="nw")
+                                                   image=self._pi_e, anchor="nw")
+        self._t = self.representation.create_image(*self.coords, image=self._pi_t, anchor="nw")
 
         self.representation.images.update({str(self._t): self})
         self.representation.images.update({str(self._e): self})
@@ -44,6 +47,34 @@ class Region:
     def move(self, delta_x, delta_y):
         self.representation.move(self._e, delta_x, delta_y)
         self.representation.move(self._t, delta_x, delta_y)
+
+    def resize(self, delta_w, delta_h, which=True):
+        x1, y1, x2, y2 = self.representation.bbox(self._e)
+        self.representation.images.pop(str(self._e))
+        self.representation.delete(self._e)
+
+        w = x2-x1
+        h = y2-y1
+        
+        self.extended = self.extended.resize((w+delta_w, h+delta_h))
+        self._pi_e = PhotoImage(self.extended)
+        self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
+
+        self.representation.images.update({str(self._e): self})
+        
+        if which:
+            x1, y1, x2, y2 = self.representation.bbox(self._t)
+            self.representation.images.pop(str(self._t))
+            self.representation.delete(self._t)
+
+            w = x2 - x1
+            h = y2 - y1
+            
+            self.touch = self.touch.resize((w+delta_w, h+delta_h))
+            self._pi_t = PhotoImage(self.touch)
+            self._t = self.representation.create_image(x1, y1, image=self._pi_t, anchor="nw")
+
+            self.representation.images.update({str(self._t): self})
 
 
 class Representation(tk.Canvas):
@@ -73,6 +104,7 @@ class Representation(tk.Canvas):
         self.regions: list[Region] = []
         self.selected: Region = None
         self.images = {}
+        self._sel = ()
         self.selected_data = {"x": 0, "y": 0}
 
         self._items = items
@@ -105,17 +137,28 @@ class Representation(tk.Canvas):
         for item in self._items:
             self.regions.append(Region(self, item))
 
-        self.bind("<Button-1>", self.sel)
+        self.bind("<Button-1>", self.select_region)
+        self.bind("<Escape>", self.deselect_region)
         self.bind("<ButtonRelease-1>", self.drag_stop)
         self.bind("<B1-Motion>", self.drag)
+        for bind in ["<Left>", "<Right>", "<Up>", "<Down>"]:
+            self.bind(bind, self.move_region)
+            self.bind(bind, self.resize_region, "+")
 
-    def sel(self, event):
+    def select_region(self, event):
         sel = self.find_closest(event.x, event.y)
+        print(sel)
         if "nodrag" in self.gettags(sel):
             return
 
+        self._sel = sel
         self.selected = self.images[f"{sel[0]}"]
         self.selected_data = {"x": event.x, "y": event.y}
+
+    def deselect_region(self, _):
+        if self.selected is None:
+            return
+        self.selected = None
 
     def drag(self, event):
         delta_x = event.x - self.selected_data["x"]
@@ -126,5 +169,29 @@ class Representation(tk.Canvas):
         self.selected_data = {"x": event.x, "y": event.y}
 
     def drag_stop(self, _):
-        self.selected = None
         self.selected_data = {"x": 0, "y": 0}
+
+    def move_region(self, event):
+        if self.selected is None:
+            return
+        if event.keysym == "Right" and not bool(0x1 & event.state):
+            self.selected.move(1, 0)
+        elif event.keysym == "Left" and not bool(0x1 & event.state):
+            self.selected.move(-1, 0)
+        elif event.keysym == "Up" and not bool(0x1 & event.state):
+            self.selected.move(0, -1)
+        elif event.keysym == "Down" and not bool(0x1 & event.state):
+            self.selected.move(0, 1)
+
+    def resize_region(self, event):
+        if self.selected is None:
+            return
+        if event.keysym == "Right" and bool(0x1 & event.state):
+            self.selected.resize(1, 0)
+        elif event.keysym == "Left" and bool(0x1 & event.state):
+            self.selected.resize(-1, 0)
+        elif event.keysym == "Up" and bool(0x1 & event.state):
+            self.selected.resize(0, -1)
+        elif event.keysym == "Down" and bool(0x1 & event.state):
+            self.selected.resize(0, 1)
+

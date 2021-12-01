@@ -57,13 +57,13 @@ class Editor(tk.Tk):
 
     def _on_tab_change(self, event):
         self.cur_canv = self.reprs[self.notebook.tab(self.notebook.index("current"), "text")]
+        self.cur_canv.focus_set()
         size = tuple(self.cur_canv.mapping_size.values())
         self.notebook.config(width=size[0], height=size[1])
 
         self.eval('tk::PlaceWindow . center')
 
-        self.cur_canv.drag_data = {"x": 0, "y": 0, "item": None}
-
+        self.cur_canv.selected = None
 
 if __name__ == '__main__':
     Editor().mainloop()
