@@ -1,5 +1,6 @@
 import io
 import tkinter as tk
+from pprint import pprint
 from pdf2image import convert_from_bytes as cfb
 from pdf2image import convert_from_path as cfp
 from pdf2image.exceptions import PDFPageCountError
@@ -182,6 +183,7 @@ class Representation(tk.Canvas):
         self.bind("<Escape>", self.deselect_region)
         self.bind("<ButtonRelease-1>", self.drag_stop)
         self.bind("<B1-Motion>", self.drag)
+        self.bind("<Command-s>", self.save)
 
     def statusbar_updater(self):
         try:
@@ -290,3 +292,13 @@ class Representation(tk.Canvas):
 
         self.statusbar_updater()
 
+    def save(self, _):
+        items = []
+        for reg in self.regions:
+            item = {"inputs": reg.inputs}
+            tx1, ty1, tx2, ty2 = self.bbox(reg._t)
+            ex1, ey1, ex2, ey2 = self.bbox(reg._e)
+            item["frame"] = {"x": tx1, "y": ty1, "width": tx2-tx1, "height": ty2-ty1}
+            item["extendedEdges"] = {"top": ty1-ey1, "left": tx1-ex1, "right": ex2-tx2, "bottom": ey2-ty2}
+            items.append(item)
+        pprint(items)
