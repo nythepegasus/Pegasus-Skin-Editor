@@ -56,33 +56,66 @@ class Region:
         self.representation.move(self._e, delta_x, delta_y)
         self.representation.move(self._t, delta_x, delta_y)
 
-    def resize(self, delta_w, delta_h, which=True):
-        x1, y1, x2, y2 = self.representation.bbox(self._e)
-        self.representation.images.pop(str(self._e))
-        self.representation.delete(self._e)
-
-        w = x2-x1
-        h = y2-y1
-        
-        self.extended = self.extended.resize((w+delta_w, h+delta_h))
-        self._pi_e = PhotoImage(self.extended)
-        self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
-
-        self.representation.images.update({str(self._e): self})
-        
+    def resize(self, delta_w, delta_h, which=True, opp=False):
         if which:
-            x1, y1, x2, y2 = self.representation.bbox(self._t)
+            tx1, ty1, tx2, ty2 = self.representation.bbox(self._t)
+            ex1, ey1, ex2, ey2 = self.representation.bbox(self._e)
             self.representation.images.pop(str(self._t))
+            self.representation.images.pop(str(self._e))
             self.representation.delete(self._t)
+            self.representation.delete(self._e)
+
+            w = tx2 - tx1
+            h = ty2 - ty1
+            ew = ex2 - ex1
+            eh = ey2 - ey1
+
+            self.extended = self.extended.resize((ew + delta_w, eh + delta_h))
+            self._pi_e = PhotoImage(self.extended)
+            self._e = self.representation.create_image(ex1, ey1, image=self._pi_e, anchor="nw")
+            self.touch = self.touch.resize((w+delta_w, h+delta_h))
+            self._pi_t = PhotoImage(self.touch)
+            self._t = self.representation.create_image(tx1, ty1, image=self._pi_t, anchor="nw")
+
+            self.representation._sel = self._t
+            self.representation.images.update({str(self._t): self})
+            self.representation.images.update({str(self._e): self})
+        else:
+            x1, y1, x2, y2 = self.representation.bbox(self._e)
+
+            self.representation.images.pop(str(self._e))
+            self.representation.delete(self._e)
 
             w = x2 - x1
             h = y2 - y1
-            
-            self.touch = self.touch.resize((w+delta_w, h+delta_h))
-            self._pi_t = PhotoImage(self.touch)
-            self._t = self.representation.create_image(x1, y1, image=self._pi_t, anchor="nw")
+            if opp:
+                self.extended = self.extended.resize((w-abs(delta_w), h-abs(delta_h)))
+                self._pi_e = PhotoImage(self.extended)
 
-            self.representation.images.update({str(self._t): self})
+                if delta_w < 0:
+                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
+                elif delta_w > 0:
+                    self._e = self.representation.create_image(x1+delta_w, y1, image=self._pi_e, anchor="nw")
+                if delta_h < 0:
+                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
+                elif delta_h > 0:
+                    self._e = self.representation.create_image(x1, y1+delta_h, image=self._pi_e, anchor="nw")
+            else:
+                self.extended = self.extended.resize((w + abs(delta_w), h + abs(delta_h)))
+                self._pi_e = PhotoImage(self.extended)
+
+                if delta_w > 0:
+                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
+                elif delta_w < 0:
+                    self._e = self.representation.create_image(x1 + delta_w, y1, image=self._pi_e, anchor="nw")
+                if delta_h > 0:
+                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
+                elif delta_h < 0:
+                    self._e = self.representation.create_image(x1, y1 + delta_h, image=self._pi_e, anchor="nw")
+
+            self.representation._sel = self._e
+            self.representation.tag_raise(self._t)
+            self.representation.images.update({str(self._e): self})
 
 
 class Representation(tk.Canvas):
@@ -149,9 +182,6 @@ class Representation(tk.Canvas):
         self.bind("<Escape>", self.deselect_region)
         self.bind("<ButtonRelease-1>", self.drag_stop)
         self.bind("<B1-Motion>", self.drag)
-        for bind in ["<Left>", "<Right>", "<Up>", "<Down>"]:
-            self.bind(bind, self.move_region)
-            self.bind(bind, self.resize_region, "+")
 
     def statusbar_updater(self):
         try:
@@ -233,4 +263,30 @@ class Representation(tk.Canvas):
             self.selected.resize(0, -1)
         elif event.keysym == "Down" and bool(0x1 & event.state):
             self.selected.resize(0, 1)
+
+        self.statusbar_updater()
+
+    def resize_extended(self, event):
+        if event.keysym == "Right":
+            if bool(0x1 & event.state):
+                self.selected.resize(1, 0, False, True)
+            else:
+                self.selected.resize(1, 0, False)
+        elif event.keysym == "Left":
+            if bool(0x1 & event.state):
+                self.selected.resize(-1, 0, False, True)
+            else:
+                self.selected.resize(-1, 0, False)
+        elif event.keysym == "Up":
+            if bool(0x1 & event.state):
+                self.selected.resize(0, -1, False, True)
+            else:
+                self.selected.resize(0, -1, False)
+        elif event.keysym == "Down":
+            if bool(0x1 & event.state):
+                self.selected.resize(0, 1, False, True)
+            else:
+                self.selected.resize(0, 1, False)
+
+        self.statusbar_updater()
 
