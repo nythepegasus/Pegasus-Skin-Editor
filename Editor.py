@@ -64,6 +64,8 @@ class Editor(tk.Tk):
         self.eval('tk::PlaceWindow . center')
 
         self.cur_canv.selected = None
+        self.cur_selected.set("")
+
 
 if __name__ == '__main__':
     Editor().mainloop()
