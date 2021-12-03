@@ -7,6 +7,14 @@ from pathlib import Path
 from PIL.ImageTk import PhotoImage, Image
 
 
+BUTTON_NAMES = {
+    "Analog Stick": {"up": "analogStickUp", "down": "analogStickDown",
+                     "left": "analogStickLeft", "right": "analogStickRight"},
+    "D-Pad": {"up": "up", "down": "down", "left": "left", "right": "right"},
+    "Touch Screen": {"x": "touchScreenX", "y": "touchScreenY"}
+}
+
+
 class Region:
     def __init__(self, representation: "Representation", item: dict):
         self.representation = representation
@@ -145,20 +153,47 @@ class Representation(tk.Canvas):
             self.bind(bind, self.move_region)
             self.bind(bind, self.resize_region, "+")
 
+    def statusbar_updater(self):
+        try:
+            key = next(key for key, value in BUTTON_NAMES.items() if value == self.selected.inputs)
+        except StopIteration:
+            if isinstance(self.selected.inputs, list):
+                if len(self.selected.inputs) > 1:
+                    key = ", ".join([i.capitalize() for i in self.selected.inputs])
+                else:
+                    key = self.selected.inputs[0].capitalize()
+            else:
+                key = self.selected.inputs
+
+        x1, y1, x2, y2 = self.bbox(self._sel)
+        self.master.cur_selected.set(f"{key} | X: {x1} Y: {y1} | W: {x2 - x1} H: {y2 - y1}")
+
     def select_region(self, event):
         sel = self.find_closest(event.x, event.y)
-        print(sel)
         if "nodrag" in self.gettags(sel):
             return
 
         self._sel = sel
         self.selected = self.images[f"{sel[0]}"]
+        if (self.selected._e,) == self._sel:
+            for bind in ["<Left>", "<Right>", "<Up>", "<Down>"]:
+                self.unbind(bind)
+                self.bind(bind, self.resize_extended)
+        else:
+            for bind in ["<Left>", "<Right>", "<Up>", "<Down>"]:
+                self.unbind(bind)
+                self.bind(bind, self.move_region)
+                self.bind(bind, self.resize_region, "+")
         self.selected_data = {"x": event.x, "y": event.y}
+
+        self.statusbar_updater()
 
     def deselect_region(self, _):
         if self.selected is None:
             return
         self.selected = None
+        self._sel = ()
+        self.master.cur_selected.set("")
 
     def drag(self, event):
         delta_x = event.x - self.selected_data["x"]
@@ -167,6 +202,8 @@ class Representation(tk.Canvas):
         self.selected.move(delta_x, delta_y)
 
         self.selected_data = {"x": event.x, "y": event.y}
+
+        self.statusbar_updater()
 
     def drag_stop(self, _):
         self.selected_data = {"x": 0, "y": 0}
@@ -182,6 +219,8 @@ class Representation(tk.Canvas):
             self.selected.move(0, -1)
         elif event.keysym == "Down" and not bool(0x1 & event.state):
             self.selected.move(0, 1)
+
+        self.statusbar_updater()
 
     def resize_region(self, event):
         if self.selected is None:
