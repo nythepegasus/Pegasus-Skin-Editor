@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import json
 import tkinter as tk
+import zipfile
+from dialogs import SaveDialog
 from tkinter import StringVar, filedialog, messagebox, ttk
 from pathlib import Path
 from handlers import dskin_handler
@@ -44,8 +46,7 @@ class Editor(tk.Tk):
                 skin_str = f"{map_type.capitalize()[0:1]} | {orientation.capitalize()[0:1]}"
                 self.SKIN_TYPES.append(skin_str)
                 cur_repr = representations[map_type][orientation]
-                self.reprs[skin_str] = Representation(cur_repr["items"], cur_repr["mappingSize"],
-                                                      cur_repr["extendedEdges"], cur_repr["assets"])
+                self.reprs[skin_str] = Representation(cur_repr)
                 self.reprs[skin_str].pack(fill="both", expand=True)
                 self.notebook.add(self.reprs[skin_str], text=skin_str)
 
@@ -56,6 +57,10 @@ class Editor(tk.Tk):
         self.deiconify()
 
     def _on_tab_change(self, event):
+        try:
+            self.cur_canv.save()
+        except AttributeError:
+            pass
         self.cur_canv = self.reprs[self.notebook.tab(self.notebook.index("current"), "text")]
         self.cur_canv.focus_set()
         size = tuple(self.cur_canv.mapping_size.values())
@@ -65,6 +70,41 @@ class Editor(tk.Tk):
 
         self.cur_canv.selected = None
         self.cur_selected.set("")
+
+    def save_all(self, _):
+        for canv in self.reprs.values():
+            canv.save()
+        save_dialog = SaveDialog(self.config_data)
+        save_dialog.wait_window(save_dialog)
+        save_values = save_dialog.ret_dict
+        if save_values is not None:
+            self.config_data["name"] = save_values["name"]
+            self.title(self.config_data["name"])
+            self.config_data["identifier"] = save_values["identifier"]
+            self.config_data["gameTypeIdentifier"] = save_values["gameTypeIdentifier"]
+            self.config_data["debug"] = save_values["debug"]
+            if save_values["overwrite"]:
+                if self.OTYPE == "dir":
+                    json.dump(self.config_data, self.wd.open("w"), indent=2)
+                else:
+                    with zipfile.ZipFile(self.wd) as zfile:
+                        zfile.writestr("info.json", json.dumps(self.config_data, indent=2))
+                        for file in self.zfile.filelist:
+                            if file.filename != "info.json":
+                                zfile.writestr(file.filename, self.zfile.open(file).read())
+            else:
+                if self.OTYPE == "dir":
+                    conf_file = filedialog.asksaveasfilename(defaultextension=".json",
+                                                             filetypes=[("JSON Files", ".json")],
+                                                             initialdir=self.wd.parent, title="Choose New Config File")
+                    if not conf_file:
+                        return
+                else:
+                    with zipfile.ZipFile(self.wd.parent / f"{self.wd.stem}_edited{self.wd.suffix}") as zfile:
+                        zfile.writestr("info.json", json.dumps(self.config_data, indent=2))
+                        for file in self.zfile.filelist:
+                            if file.filename != "info.json":
+                                zfile.writestr(file.filename, self.zfile.open(file).read())
 
 
 if __name__ == '__main__':

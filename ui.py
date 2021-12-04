@@ -118,41 +118,26 @@ class Region:
             self.representation.tag_raise(self._t)
             self.representation.images.update({str(self._e): self})
 
+    def delete(self):
+        self.representation.delete(self._e)
+        self.representation.delete(self._t)
+        self.representation.regions.remove(self)
+
 
 class Representation(tk.Canvas):
-    """Custom Editor Class
-
-    This is a custom class that helps manage Regions and general configurations for each `Representation`
-
-    Parameters
-    ----------
-    mapping_size : dict
-        Current `Representation`'s `mapping_size`
-    extended_edges : dict
-        Current `Representation`'s default `extended_edges` which fills a :class:`Region`'s extended_edges if one of
-        them isn't defined.
-    assets : dict
-        Current `Representation`'s image assets. Usually a PNG or PDF
-
-    Attributes
-    ----------
-    regions : list[Region]
-        ``list`` of :class:`Region`s that this `Representation` handles.
-    selected : Region
-        The currently selected `Region`
-    """
-    def __init__(self, items: list[dict], mapping_size: dict, extended_edges: dict, assets: dict):
+    def __init__(self, cur_repr: dict):
         super().__init__()
         self.regions: list[Region] = []
         self.selected: Region = None
+        self.cur_repr = cur_repr
         self.images = {}
         self._sel = ()
         self.selected_data = {"x": 0, "y": 0}
 
-        self._items = items
-        self.mapping_size = mapping_size
-        self.extended_edges = extended_edges
-        self.assets = assets
+        self._items = cur_repr["items"]
+        self.mapping_size = cur_repr["mappingSize"]
+        self.extended_edges = cur_repr["extendedEdges"]
+        self.assets = cur_repr["assets"]
 
         key = next(iter(self.assets.keys()))
         size = tuple(self.mapping_size.values())
@@ -183,7 +168,7 @@ class Representation(tk.Canvas):
         self.bind("<Escape>", self.deselect_region)
         self.bind("<ButtonRelease-1>", self.drag_stop)
         self.bind("<B1-Motion>", self.drag)
-        self.bind("<Command-s>", self.save)
+        self.bind("<Command-s>", self.master.save_all)
 
     def statusbar_updater(self):
         try:
@@ -292,7 +277,7 @@ class Representation(tk.Canvas):
 
         self.statusbar_updater()
 
-    def save(self, _):
+    def save(self):
         items = []
         for reg in self.regions:
             item = {"inputs": reg.inputs}
@@ -301,4 +286,4 @@ class Representation(tk.Canvas):
             item["frame"] = {"x": tx1, "y": ty1, "width": tx2-tx1, "height": ty2-ty1}
             item["extendedEdges"] = {"top": ty1-ey1, "left": tx1-ex1, "right": ex2-tx2, "bottom": ey2-ty2}
             items.append(item)
-        pprint(items)
+        self.cur_repr["items"] = items
