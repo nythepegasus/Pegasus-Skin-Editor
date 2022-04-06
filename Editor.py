@@ -2,6 +2,7 @@
 import yaml
 import json
 import tkinter as tk
+import argparse
 import zipfile
 from dialogs import SaveDialog
 from tkinter import StringVar, filedialog, messagebox, ttk
@@ -11,11 +12,18 @@ from ui import Representation
 
 
 class Editor(tk.Tk):
-    def __init__(self):
+    def __init__(self, file=None):
         super().__init__()
         self.withdraw()
-        self.wd = Path(filedialog.askopenfilename(initialdir=Path(".").absolute(),
-                                                  filetypes=[("Skin conf", "json"), ("Skin file", "deltaskin")]))
+        if file is None:
+            self.wd = Path(
+                filedialog.askopenfilename(
+                    initialdir=Path(".").absolute(),
+                    filetypes=[("Skin conf", "json"), ("Skin file", "deltaskin")],
+                )
+            )
+        else:
+            self.wd = Path(file)
         if self.wd.suffix not in [".json", ".deltaskin"]:
             messagebox.showerror(
                 "No File Selected!", "Please select a file to continue."
@@ -117,5 +125,9 @@ class Editor(tk.Tk):
                                 zfile.writestr(file.filename, self.zfile.open(file).read())
 
 
-if __name__ == '__main__':
-    Editor().mainloop()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='[DEBUGGER] Only for debugging application from CLI')
+    parser.add_argument("opt_pos_arg", type=str, nargs="?", help="File to open on launch")
+    args = parser.parse_args()
+    print(args.opt_pos_arg)
+    Editor(args.opt_pos_arg).mainloop()
