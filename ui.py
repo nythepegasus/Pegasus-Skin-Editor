@@ -180,6 +180,7 @@ class Representation(tk.Canvas):
         self.bind("<Escape>", self.deselect_region)
         self.bind("<ButtonRelease-1>", self.drag_stop)
         self.bind("<B1-Motion>", self.drag)
+        self.bind("d", self.delete_region)
 
     def statusbar_updater(self):
         try:
@@ -247,6 +248,12 @@ class Representation(tk.Canvas):
 
     def drag_stop(self, _):
         self.selected_data = {"x": 0, "y": 0}
+
+    def delete_region(self, _):
+        if self.selected is None:
+            return
+        self.selected.delete()
+        self.deselect_region(None)
 
     def move_region(self, event):
         if self.selected is None:
