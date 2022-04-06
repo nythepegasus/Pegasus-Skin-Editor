@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import yaml
 import json
 import tkinter as tk
 import zipfile
@@ -16,14 +17,16 @@ class Editor(tk.Tk):
         self.wd = Path(filedialog.askopenfilename(initialdir=Path(".").absolute(),
                                                   filetypes=[("Skin conf", "json"), ("Skin file", "deltaskin")]))
         if self.wd.suffix not in [".json", ".deltaskin"]:
-            messagebox.showerror("No File Selected!", "Please select a file to continue.")
+            messagebox.showerror(
+                "No File Selected!", "Please select a file to continue."
+            )
             # TODO: Raise an error we can restart from
-            raise SystemExit("No file selected")  # Temp
+            raise SystemExit("No file selected")
         elif self.wd.suffix == ".deltaskin":
             self.config_data, self.zfile = dskin_handler(self.wd)
             self.OTYPE = "zip"
         elif self.wd.suffix == ".json":
-            self.config_data = json.load(self.wd.open())
+            self.config_data = yaml.load(self.wd.open(), yaml.Loader)
             self.OTYPE = "dir"
 
         self.title(self.config_data["name"])
@@ -43,30 +46,34 @@ class Editor(tk.Tk):
         representations = self.config_data["representations"]["iphone"]
         for map_type in representations:
             for orientation in representations[map_type]:
-                skin_str = f"{map_type.capitalize()[0:1]} | {orientation.capitalize()[0:1]}"
+                skin_str = (
+                    f"{map_type.capitalize()[0:1]} | {orientation.capitalize()[0:1]}"
+                )
                 self.SKIN_TYPES.append(skin_str)
                 cur_repr = representations[map_type][orientation]
-                self.reprs[skin_str] = Representation(cur_repr)
                 self.reprs[skin_str].pack(fill="both", expand=True)
                 self.notebook.add(self.reprs[skin_str], text=skin_str)
 
         for canv in [self.reprs[r] for r in self.reprs]:
             self.config(**canv.mapping_size)
 
-        self.eval('tk::PlaceWindow . center')
+        self.eval("tk::PlaceWindow . center")
         self.deiconify()
 
-    def _on_tab_change(self, event):
+    def _on_tab_change(self, _):
         try:
             self.cur_canv.save()
         except AttributeError:
             pass
-        self.cur_canv = self.reprs[self.notebook.tab(self.notebook.index("current"), "text")]
+        self.cur_canv = self.reprs[
+            self.notebook.tab(self.notebook.index("current"), "text")
+        ]
         self.cur_canv.focus_set()
-        size = tuple(self.cur_canv.mapping_size.values())
+        size = list(self.cur_canv.mapping_size.values())
+        size = int(size[0]) + 1, int(size[1]) + 1
         self.notebook.config(width=size[0], height=size[1])
 
-        self.eval('tk::PlaceWindow . center')
+        self.eval("tk::PlaceWindow . center")
 
         self.cur_canv.selected = None
         self.cur_selected.set("")
@@ -94,9 +101,12 @@ class Editor(tk.Tk):
                                 zfile.writestr(file.filename, self.zfile.open(file).read())
             else:
                 if self.OTYPE == "dir":
-                    conf_file = filedialog.asksaveasfilename(defaultextension=".json",
-                                                             filetypes=[("JSON Files", ".json")],
-                                                             initialdir=self.wd.parent, title="Choose New Config File")
+                    conf_file = filedialog.asksaveasfilename(
+                        defaultextension=".json",
+                        filetypes=[("JSON Files", ".json")],
+                        initialdir=self.wd.parent,
+                        title="Choose New Config File",
+                    )
                     if not conf_file:
                         return
                 else:
