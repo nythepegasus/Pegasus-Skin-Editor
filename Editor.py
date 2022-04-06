@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import io
 import yaml
 import json
 import tkinter as tk
@@ -6,6 +7,10 @@ import argparse
 import zipfile
 from dialogs import SaveDialog
 from tkinter import StringVar, filedialog, messagebox, ttk
+from pdf2image import convert_from_bytes as cfb
+from pdf2image import convert_from_path as cfp
+from pdf2image.exceptions import PDFPageCountError
+from PIL.ImageTk import Image
 from pathlib import Path
 from handlers import dskin_handler
 from ui import Representation
@@ -36,6 +41,7 @@ class Editor(tk.Tk):
         elif self.wd.suffix == ".json":
             self.config_data = yaml.load(self.wd.open(), yaml.Loader)
             self.OTYPE = "dir"
+        self.cur_canv = None
 
         self.title(self.config_data["name"])
 
@@ -43,6 +49,7 @@ class Editor(tk.Tk):
         self.notebook.enable_traversal()
         self.notebook.pack(anchor="nw")
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_change)
+        self.bind("<Command-s>", self.save_all)
 
         self.cur_selected = StringVar(None, "")
         statusbar = tk.Label(self, textvariable=self.cur_selected, anchor=tk.W)
@@ -59,8 +66,42 @@ class Editor(tk.Tk):
                 )
                 self.SKIN_TYPES.append(skin_str)
                 cur_repr = representations[map_type][orientation]
+                key = next(iter(cur_repr["assets"].keys()))
+                size = tuple(cur_repr["mappingSize"].values())
+                size = int(size[0]), int(size[1])
+                try:
+                    if "resizable" in cur_repr["assets"]:
+                        if self.OTYPE == "dir":
+                            bg_image = cfp(
+                                Path(self.wd.parent / cur_repr["assets"][key]),
+                                size=size,
+                                fmt="png",
+                            )[0]
+                        else:
+                            bg_image = cfb(
+                                self.zfile.read(cur_repr["mappingSize"][key]), size=size, fmt="png"
+                            )[0]
+                    else:
+                        if self.OTYPE == "dir":
+                            bg_image = Image.open(self.wd.parent / cur_repr["mappingSize"][key]).resize(
+                                size
+                            )
+                        else:
+                            bg_image = Image.open(
+                                io.BytesIO(self.zfile.read(cur_repr["mappingSize"][key]))
+                            ).resize(size)
+                except (PDFPageCountError, KeyError) as e:
+                    if isinstance(e, KeyError):
+                        raise SystemExit("Couldn't get the correct key!")
+                    else:
+                        raise SystemExit(
+                            "Couldn't get PDF information! Check your Poppler version."
+                        )
+
+                self.reprs[skin_str] = Representation(cur_repr, self.config_data["gameTypeIdentifier"], bg_image)
                 self.reprs[skin_str].pack(fill="both", expand=True)
                 self.notebook.add(self.reprs[skin_str], text=skin_str)
+                self.reprs[skin_str].selected_text = self.cur_selected
 
         for canv in [self.reprs[r] for r in self.reprs]:
             self.config(**canv.mapping_size)

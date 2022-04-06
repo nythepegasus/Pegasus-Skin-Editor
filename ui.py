@@ -1,19 +1,8 @@
-import io
 import tkinter as tk
-from pprint import pprint
-from pdf2image import convert_from_bytes as cfb
-from pdf2image import convert_from_path as cfp
-from pdf2image.exceptions import PDFPageCountError
-from pathlib import Path
+from resources import BUTTON_NAMES
+from dialogs import ButtonSelect
+from typing import Optional
 from PIL.ImageTk import PhotoImage, Image
-
-
-BUTTON_NAMES = {
-    "Analog Stick": {"up": "analogStickUp", "down": "analogStickDown",
-                     "left": "analogStickLeft", "right": "analogStickRight"},
-    "D-Pad": {"up": "up", "down": "down", "left": "left", "right": "right"},
-    "Touch Screen": {"x": "touchScreenX", "y": "touchScreenY"}
-}
 
 
 class Region:
@@ -23,9 +12,12 @@ class Region:
         self.inputs = self._config["inputs"]
         self.frame = self._config["frame"]
 
-        self.width = self.frame["width"]
-        self.height = self.frame["height"]
-        self.coords = (self.frame["x"], self.frame["y"])
+        self.tch_tag = None
+        self.ext_tag = None
+        self._pi_t = None
+        self._pi_e = None
+        self.touch = None
+        self.extended = None
 
         if "extendedEdges" in self._config.keys():
             self.extended_edges = self._config["extendedEdges"]
@@ -125,40 +117,31 @@ class Region:
 
 
 class Representation(tk.Canvas):
-    def __init__(self, cur_repr: dict):
+    def __init__(self, cur_repr: dict, game_type: str, bg_image: Image):
         super().__init__()
         self.regions: list[Region] = []
-        self.selected: Region = None
+        self.selected: Optional[Region] = None
         self.cur_repr = cur_repr
-        self.images = {}
-        self._sel = ()
+        self.images: dict[str:Region] = {}
+        self.sel_tag = 0
         self.selected_data = {"x": 0, "y": 0}
+        self.selected_text = None
+        self.game_type = game_type
 
-        self._items = cur_repr["items"]
         self.mapping_size = cur_repr["mappingSize"]
-        self.extended_edges = cur_repr["extendedEdges"]
+        self._items = cur_repr["items"]
+        if "extendedEdges" in cur_repr.keys():
+            self.extended_edges = cur_repr["extendedEdges"]
+        else:
+            self.extended_edges = {
+                "top": 0,
+                "bottom": 0,
+                "left": 0,
+                "right": 0
+            }
         self.assets = cur_repr["assets"]
 
-        key = next(iter(self.assets.keys()))
-        size = tuple(self.mapping_size.values())
-        try:
-            if "resizable" in self.assets:
-                if self.master.OTYPE == "dir":
-                    image = cfp(Path(self.master.wd.parent / self.assets[key]), size=size, fmt="png")[0]
-                else:
-                    image = cfb(self.master.zfile.read(self.assets[key]), size=size, fmt="png")[0]
-            else:
-                if self.master.OTYPE == "dir":
-                    image = Image.open(self.master.wd.parent / self.assets[key]).resize(size)
-                else:
-                    image = Image.open(io.BytesIO(self.master.zfile.read(self.assets[key]))).resize(size)
-        except (PDFPageCountError, KeyError) as e:
-            if isinstance(e, KeyError):
-                raise SystemExit("Couldn't get the correct key!")
-            else:
-                raise SystemExit("Couldn't get PDF information! Check your Poppler version.")
-
-        self._bg_image = PhotoImage(image)
+        self._bg_image = PhotoImage(bg_image)
         self.create_image(0, 0, image=self._bg_image, anchor="nw", tag="nodrag")
 
         for item in self._items:
@@ -168,31 +151,40 @@ class Representation(tk.Canvas):
         self.bind("<Escape>", self.deselect_region)
         self.bind("<ButtonRelease-1>", self.drag_stop)
         self.bind("<B1-Motion>", self.drag)
-        self.bind("<Command-s>", self.master.save_all)
 
     def statusbar_updater(self):
         try:
-            key = next(key for key, value in BUTTON_NAMES.items() if value == self.selected.inputs)
+            key = next(
+                key for key in BUTTON_NAMES.keys() if key in str(self.selected.inputs)
+            )
+            key = BUTTON_NAMES[key]
         except StopIteration:
             if isinstance(self.selected.inputs, list):
                 if len(self.selected.inputs) > 1:
-                    key = ", ".join([i.capitalize() for i in self.selected.inputs])
+                    key = ", ".join([i.title() for i in self.selected.inputs])
                 else:
-                    key = self.selected.inputs[0].capitalize()
+                    key = self.selected.inputs[0].title()
             else:
                 key = self.selected.inputs
 
-        x1, y1, x2, y2 = self.bbox(self._sel)
-        self.master.cur_selected.set(f"{key} | X: {x1} Y: {y1} | W: {x2 - x1} H: {y2 - y1}")
+        x1, y1, x2, y2 = self.bbox(self.sel_tag)
+        self.selected_text.set(
+            f"{key} | X: {x1} Y: {y1} | W: {x2 - x1} H: {y2 - y1}"
+        )
 
     def select_region(self, event):
         sel = self.find_closest(event.x, event.y)
-        if "nodrag" in self.gettags(sel):
+        if event.state == 1:
+            overlapped = self.find_overlapping(event.x, event.y, event.x, event.y)
+            if len(overlapped) > 2:
+                sel = (overlapped[-2],)
+
+        if "nodrag" in self.gettags(sel[0]):
             return
 
-        self._sel = sel
+        self.sel_tag = sel[0]
         self.selected = self.images[f"{sel[0]}"]
-        if (self.selected._e,) == self._sel:
+        if self.selected.ext_tag == self.sel_tag:
             for bind in ["<Left>", "<Right>", "<Up>", "<Down>"]:
                 self.unbind(bind)
                 self.bind(bind, self.resize_extended)
@@ -200,7 +192,7 @@ class Representation(tk.Canvas):
             for bind in ["<Left>", "<Right>", "<Up>", "<Down>"]:
                 self.unbind(bind)
                 self.bind(bind, self.move_region)
-                self.bind(bind, self.resize_region, "+")
+                self.bind(bind, self.resize_region, True)
         self.selected_data = {"x": event.x, "y": event.y}
 
         self.statusbar_updater()
@@ -209,10 +201,12 @@ class Representation(tk.Canvas):
         if self.selected is None:
             return
         self.selected = None
-        self._sel = ()
-        self.master.cur_selected.set("")
+        self.sel_tag = 0
+        self.selected_text.set("")
 
     def drag(self, event):
+        if self.sel_tag == 0:
+            return
         delta_x = event.x - self.selected_data["x"]
         delta_y = event.y - self.selected_data["y"]
 
@@ -281,9 +275,19 @@ class Representation(tk.Canvas):
         items = []
         for reg in self.regions:
             item = {"inputs": reg.inputs}
-            tx1, ty1, tx2, ty2 = self.bbox(reg._t)
-            ex1, ey1, ex2, ey2 = self.bbox(reg._e)
-            item["frame"] = {"x": tx1, "y": ty1, "width": tx2-tx1, "height": ty2-ty1}
-            item["extendedEdges"] = {"top": ty1-ey1, "left": tx1-ex1, "right": ex2-tx2, "bottom": ey2-ty2}
+            tx1, ty1, tx2, ty2 = self.bbox(reg.tch_tag)
+            ex1, ey1, ex2, ey2 = self.bbox(reg.ext_tag)
+            item["frame"] = {
+                "x": tx1,
+                "y": ty1,
+                "width": tx2 - tx1,
+                "height": ty2 - ty1,
+            }
+            item["extendedEdges"] = {
+                "top": ty1 - ey1,
+                "left": tx1 - ex1,
+                "right": ex2 - tx2,
+                "bottom": ey2 - ty2,
+            }
             items.append(item)
         self.cur_repr["items"] = items
