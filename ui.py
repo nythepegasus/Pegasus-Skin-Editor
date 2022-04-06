@@ -27,93 +27,122 @@ class Region:
         else:
             self.extended_edges = self.representation.extended_edges
 
-        top = self.extended_edges["top"]
-        bottom = self.extended_edges["bottom"]
-        left = self.extended_edges["left"]
-        right = self.extended_edges["right"]
+        self.create_images(self.frame, self.extended_edges)
 
-        self.touch = Image.new("RGBA", (self.width, self.height), "#0000ff80")
-        self.extended = Image.new("RGBA", (left+self.width+right, top+self.height+bottom), "#ff000080")
+    def create_images(self, frame, extended_edges):
+        width = int(frame["width"])
+        height = int(frame["height"])
+        coords = (int(frame["x"]), int(frame["y"]))
+
+        top = extended_edges["top"]
+        bottom = extended_edges["bottom"]
+        left = extended_edges["left"]
+        right = extended_edges["right"]
+
+        self.touch = Image.new("RGBA", (width, height), "#0000ff80")
+        self.extended = Image.new(
+            "RGBA", (left + width + right, top + height + bottom), "#ff000080"
+        )
 
         self._pi_t = PhotoImage(self.touch)
         self._pi_e = PhotoImage(self.extended)
 
-        self._e = self.representation.create_image(self.coords[0]-left, self.coords[1]-top,
-                                                   image=self._pi_e, anchor="nw")
-        self._t = self.representation.create_image(*self.coords, image=self._pi_t, anchor="nw")
+        self.ext_tag = self.representation.create_image(
+            coords[0] - left, coords[1] - top, image=self._pi_e, anchor="nw"
+        )
+        self.tch_tag = self.representation.create_image(
+            *coords, image=self._pi_t, anchor="nw"
+        )
 
-        self.representation.images.update({str(self._t): self})
-        self.representation.images.update({str(self._e): self})
+        self.representation.images.update({str(self.tch_tag): self})
+        self.representation.images.update({str(self.ext_tag): self})
 
     def move(self, delta_x, delta_y):
-        self.representation.move(self._e, delta_x, delta_y)
-        self.representation.move(self._t, delta_x, delta_y)
+        self.representation.move(self.ext_tag, delta_x, delta_y)
+        self.representation.move(self.tch_tag, delta_x, delta_y)
 
-    def resize(self, delta_w, delta_h, which=True, opp=False):
-        if which:
-            tx1, ty1, tx2, ty2 = self.representation.bbox(self._t)
-            ex1, ey1, ex2, ey2 = self.representation.bbox(self._e)
-            self.representation.images.pop(str(self._t))
-            self.representation.images.pop(str(self._e))
-            self.representation.delete(self._t)
-            self.representation.delete(self._e)
-
-            w = tx2 - tx1
-            h = ty2 - ty1
-            ew = ex2 - ex1
-            eh = ey2 - ey1
-
-            self.extended = self.extended.resize((ew + delta_w, eh + delta_h))
-            self._pi_e = PhotoImage(self.extended)
-            self._e = self.representation.create_image(ex1, ey1, image=self._pi_e, anchor="nw")
-            self.touch = self.touch.resize((w+delta_w, h+delta_h))
-            self._pi_t = PhotoImage(self.touch)
-            self._t = self.representation.create_image(tx1, ty1, image=self._pi_t, anchor="nw")
-
-            self.representation._sel = self._t
-            self.representation.images.update({str(self._t): self})
-            self.representation.images.update({str(self._e): self})
+    def resize_touch(self, delta_w, delta_h):
+        if delta_w < 0 or delta_h < 0:
+            self.resize_extended(delta_w, delta_h, True)
         else:
-            x1, y1, x2, y2 = self.representation.bbox(self._e)
+            self.resize_extended(delta_w, delta_h)
+        tx1, ty1, tx2, ty2 = self.representation.bbox(self.tch_tag)
+        self.representation.images.pop(str(self.tch_tag))
+        self.representation.delete(self.tch_tag)
 
-            self.representation.images.pop(str(self._e))
-            self.representation.delete(self._e)
+        w = tx2 - tx1
+        h = ty2 - ty1
 
-            w = x2 - x1
-            h = y2 - y1
-            if opp:
-                self.extended = self.extended.resize((w-abs(delta_w), h-abs(delta_h)))
-                self._pi_e = PhotoImage(self.extended)
+        self.touch = self.touch.resize((w + delta_w, h + delta_h))
+        self._pi_t = PhotoImage(self.touch)
+        self.tch_tag = self.representation.create_image(
+            tx1, ty1, image=self._pi_t, anchor="nw"
+        )
 
-                if delta_w < 0:
-                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
-                elif delta_w > 0:
-                    self._e = self.representation.create_image(x1+delta_w, y1, image=self._pi_e, anchor="nw")
-                if delta_h < 0:
-                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
-                elif delta_h > 0:
-                    self._e = self.representation.create_image(x1, y1+delta_h, image=self._pi_e, anchor="nw")
-            else:
-                self.extended = self.extended.resize((w + abs(delta_w), h + abs(delta_h)))
-                self._pi_e = PhotoImage(self.extended)
+        self.representation.sel_tag = self.tch_tag
+        self.representation.images.update({str(self.tch_tag): self})
 
-                if delta_w > 0:
-                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
-                elif delta_w < 0:
-                    self._e = self.representation.create_image(x1 + delta_w, y1, image=self._pi_e, anchor="nw")
-                if delta_h > 0:
-                    self._e = self.representation.create_image(x1, y1, image=self._pi_e, anchor="nw")
-                elif delta_h < 0:
-                    self._e = self.representation.create_image(x1, y1 + delta_h, image=self._pi_e, anchor="nw")
+    def resize_extended(self, delta_w, delta_h, opposite=False):
+        x1, y1, x2, y2 = self.representation.bbox(self.ext_tag)
+        tx1, ty1, tx2, ty2 = self.representation.bbox(self.tch_tag)
 
-            self.representation._sel = self._e
-            self.representation.tag_raise(self._t)
-            self.representation.images.update({str(self._e): self})
+        if opposite:
+            if (
+                tx1 < x1 + delta_w
+                or ty1 < y1 + delta_h
+                or tx2 > x2 + delta_w
+                or ty2 > y2 + delta_h
+            ):
+                return
+
+        self.representation.images.pop(str(self.ext_tag))
+        self.representation.delete(self.ext_tag)
+
+        w = x2 - x1
+        h = y2 - y1
+
+        if opposite:
+            self.extended = self.extended.resize((w - abs(delta_w), h - abs(delta_h)))
+            self._pi_e = PhotoImage(self.extended)
+
+            if delta_w < 0 or delta_h < 0:
+                self.ext_tag = self.representation.create_image(
+                    x1, y1, image=self._pi_e, anchor="nw"
+                )
+            if delta_w > 0:
+                self.ext_tag = self.representation.create_image(
+                    x1 + delta_w, y1, image=self._pi_e, anchor="nw"
+                )
+            if delta_h > 0:
+                self.ext_tag = self.representation.create_image(
+                    x1, y1 + delta_h, image=self._pi_e, anchor="nw"
+                )
+        else:
+            self.extended = self.extended.resize((w + abs(delta_w), (h + abs(delta_h))))
+            self._pi_e = PhotoImage(self.extended)
+
+            if delta_w > 0 or delta_h > 0:
+                self.ext_tag = self.representation.create_image(
+                    x1, y1, image=self._pi_e, anchor="nw"
+                )
+            if delta_w < 0:
+                self.ext_tag = self.representation.create_image(
+                    x1 + delta_w, y1, image=self._pi_e, anchor="nw"
+                )
+            if delta_h < 0:
+                self.ext_tag = self.representation.create_image(
+                    x1, y1 + delta_h, image=self._pi_e, anchor="nw"
+                )
+
+        self.representation.sel_tag = self.ext_tag
+        self.representation.tag_raise(self.tch_tag)
+        self.representation.images.update({str(self.ext_tag): self})
 
     def delete(self):
-        self.representation.delete(self._e)
-        self.representation.delete(self._t)
-        self.representation.regions.remove(self)
+        self.representation.delete(self.ext_tag)
+        self.representation.delete(self.tch_tag)
+        self.representation.images.pop(str(self.tch_tag))
+        self.representation.images.pop(str(self.ext_tag))
 
 
 class Representation(tk.Canvas):
@@ -237,37 +266,37 @@ class Representation(tk.Canvas):
         if self.selected is None:
             return
         if event.keysym == "Right" and bool(0x1 & event.state):
-            self.selected.resize(1, 0)
+            self.selected.resize_touch(1, 0)
         elif event.keysym == "Left" and bool(0x1 & event.state):
-            self.selected.resize(-1, 0)
+            self.selected.resize_touch(-1, 0)
         elif event.keysym == "Up" and bool(0x1 & event.state):
-            self.selected.resize(0, -1)
+            self.selected.resize_touch(0, -1)
         elif event.keysym == "Down" and bool(0x1 & event.state):
-            self.selected.resize(0, 1)
+            self.selected.resize_touch(0, 1)
 
         self.statusbar_updater()
 
     def resize_extended(self, event):
         if event.keysym == "Right":
             if bool(0x1 & event.state):
-                self.selected.resize(1, 0, False, True)
+                self.selected.resize_extended(1, 0, True)
             else:
-                self.selected.resize(1, 0, False)
+                self.selected.resize_extended(1, 0)
         elif event.keysym == "Left":
             if bool(0x1 & event.state):
-                self.selected.resize(-1, 0, False, True)
+                self.selected.resize_extended(-1, 0, True)
             else:
-                self.selected.resize(-1, 0, False)
+                self.selected.resize_extended(-1, 0)
         elif event.keysym == "Up":
             if bool(0x1 & event.state):
-                self.selected.resize(0, -1, False, True)
+                self.selected.resize_extended(0, -1, True)
             else:
-                self.selected.resize(0, -1, False)
+                self.selected.resize_extended(0, -1)
         elif event.keysym == "Down":
             if bool(0x1 & event.state):
-                self.selected.resize(0, 1, False, True)
+                self.selected.resize_extended(0, 1, True)
             else:
-                self.selected.resize(0, 1, False)
+                self.selected.resize_extended(0, 1)
 
         self.statusbar_updater()
 
