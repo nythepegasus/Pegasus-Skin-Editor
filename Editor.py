@@ -17,13 +17,14 @@ from ui import Representation
 
 
 class Editor(tk.Tk):
-    def __init__(self, file=None):
+    def __init__(self, file=None, debug=False):
         super().__init__()
         self.withdraw()
+        self.__DEBUG = debug
         if file is None:
             self.wd = Path(
                 filedialog.askopenfilename(
-                    initialdir=Path(".").absolute(),
+                    initialdir=Path("~").absolute(),
                     filetypes=[("Skin conf", "json"), ("Skin file", "deltaskin")],
                 )
             )
@@ -73,13 +74,13 @@ class Editor(tk.Tk):
                     if "resizable" in cur_repr["assets"]:
                         if self.OTYPE == "dir":
                             bg_image = cfp(
-                                Path(self.wd.parent / cur_repr["assets"][key]),
-                                size=size,
-                                fmt="png",
+                                Path(self.wd.parent / cur_repr["assets"][key]), size=size, fmt="png",
+                                poppler_path="./bin" if not self.__DEBUG else None
                             )[0]
                         else:
                             bg_image = cfb(
-                                self.zfile.read(cur_repr["mappingSize"][key]), size=size, fmt="png"
+                                self.zfile.read(cur_repr["mappingSize"][key]), size=size, fmt="png",
+                                poppler_path="./bin" if not self.__DEBUG else None
                             )[0]
                     else:
                         if self.OTYPE == "dir":
