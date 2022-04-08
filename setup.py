@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import os
-import pwd
 import shutil
 import platform
 from setuptools import setup
+
+if platform.system() in ["Darwin", "Linux"]:
+    import pwd
 
 if platform.system() == "Darwin":
     if os.getuid() != 0:
