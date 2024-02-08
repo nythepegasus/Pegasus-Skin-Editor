@@ -1,36 +1,5 @@
-# Pegasus Skin Editor
-This is a skin editor for the Delta emulator! You can position, delete, and edit buttons
-for skins that are usable within [Delta](https://deltaemulator.com/). 
+# Pegasus Editor
+This is the rebirth of a 'small' project that I have wanted to work on for the past few years, a skin editor for the Delta emulator. However now we also have Ignited which has more skin options than Delta, so I would like to also support that as well.
 
----
-## Installing
-First you will want poppler for your whatever system you want to use this editor on.
-
----
-### Windows 
-I highly recommend getting poppler from [here](https://blog.alivate.com.au/poppler-windows/).
-I personally have had the best luck using version 0.67.0, but others have gotten higher versions 
-to work from elsewhere.
-
----
-### Mac (using brew)
-```bash
-brew install poppler
-```
----
-### Linux
-Debian based, use whichever package manager your system comes with
-```bash
-sudo apt install poppler
-```
----
-To run, you will probably want to set up a Python virtual environment 
-(`python3 -m venv venv`) and then run:
-```
-pip install -r requirements.txt
-```
-Then you can run:
-```
-python3 Editor.py 
-```
-Or on Windows you can just double click the `Editor.py` file. 
+## How?
+I am going to try my best to attempt to write this in C with raylib as my first bigger C project. I am no C expert, but I have found myself really enjoying working with it. If you would like to build the project yourself, you only need to ensure you have a proper raylib 5.0 installation as well as a compiler. Clone the project, run `make`, then run the executable!
